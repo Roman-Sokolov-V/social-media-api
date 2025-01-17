@@ -8,7 +8,7 @@ from PIL import Image as PILImage
 import uuid
 from pathlib import Path
 
-from api_config.settings import AUTH_USER_MODEL
+from django.conf import settings
 
 
 class UserManager(BaseUserManager):
@@ -53,17 +53,18 @@ class UserManager(BaseUserManager):
 class User(AbstractUser):
     """User model"""
 
-    username = None
     email = models.EmailField(_("email address"), unique=True)
-
     USERNAME_FIELD = "email"
-    REQUIRED_FIELDS = []
+    REQUIRED_FIELDS = ["username"]
     objects = UserManager()
+
+    def __str__(self):
+        return f"username: {self.username}; email: {self.email}"
 
 
 def upload_picture(instance: "Profile", filename: str) -> Path:
     filename = (
-        f"{slugify(instance.owner.email)}-{uuid.uuid4()}"
+        f"{slugify(instance.user.email)}-{uuid.uuid4()}"
         + Path(filename).suffix
     )
     return Path("profile_pictures") / Path(filename)
@@ -72,7 +73,11 @@ def upload_picture(instance: "Profile", filename: str) -> Path:
 class Profile(models.Model):
     """Profile model"""
 
-    owner = models.OneToOneField(AUTH_USER_MODEL, on_delete=models.CASCADE)
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="profile",
+    )
     picture = models.ImageField(
         blank=True, null=True, upload_to=upload_picture
     )
@@ -83,12 +88,12 @@ class Follow(models.Model):
     """Model representing user follow relationships."""
 
     follower = models.ForeignKey(
-        AUTH_USER_MODEL,
+        settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="followee",
     )
     followee = models.ForeignKey(
-        AUTH_USER_MODEL,
+        settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="followers",
     )
@@ -124,7 +129,9 @@ class Post(models.Model):
     """Post model"""
 
     author = models.ForeignKey(
-        AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="posts"
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="posts",
     )
     content = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
@@ -159,7 +166,9 @@ class Feedback(models.Model):
     """Feedback model"""
 
     reviewer = models.ForeignKey(
-        AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="feedbacks"
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="feedbacks",
     )
     post = models.ForeignKey(
         Post, on_delete=models.CASCADE, related_name="feedbacks"
