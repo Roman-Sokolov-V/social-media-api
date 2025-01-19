@@ -15,6 +15,7 @@ from rest_framework.exceptions import ValidationError
 from app.permissions import IsOwnerOrAuthenticatedReadOnly
 from app.serializers import (
     UserSerializer,
+    AuthTokenSerializer,
     ProfileListSerializer,
     ProfileCreateSerializer,
     ProfileDetailSerializer,
@@ -30,6 +31,7 @@ class CreateUserView(generics.CreateAPIView):
 
 class LoginUserView(ObtainAuthToken):
     renderer_classes = api_settings.DEFAULT_RENDERER_CLASSES
+    serializer_class = AuthTokenSerializer
 
 
 class LogoutUserView(APIView):

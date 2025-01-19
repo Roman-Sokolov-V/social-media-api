@@ -1,4 +1,6 @@
 from django.contrib.auth import get_user_model
+from django.utils.translation import gettext_lazy as _
+
 from rest_framework import serializers
 from rest_framework.authtoken.models import Token
 
@@ -21,7 +23,12 @@ class UserSerializer(serializers.ModelSerializer):
             "is_staff",
         )
         read_only_fields = ("id", "is_staff")
-        extra_kwargs = {"password": {"write_only": True}}
+        extra_kwargs = {
+            "password": {
+                "write_only": True,
+                "style": {"input_type": "password"},
+            }
+        }
 
     def create(self, validated_data):
         """Create and return a new `User` instance, given the validated data."""
@@ -36,6 +43,17 @@ class UserSerializer(serializers.ModelSerializer):
             user.set_password(password)
             user.save()
         return user
+
+
+class AuthTokenSerializer(serializers.Serializer):
+    email = serializers.CharField(label=_("Email"), write_only=True)
+    password = serializers.CharField(
+        label=_("Password"),
+        style={"input_type": "password"},
+        trim_whitespace=False,
+        write_only=True,
+    )
+    token = serializers.CharField(label=_("Token"), read_only=True)
 
 
 class ProfileCreateSerializer(serializers.ModelSerializer):
