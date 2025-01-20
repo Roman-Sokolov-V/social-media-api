@@ -8,12 +8,30 @@ from app.views import (
     LoginUserView,
     LogoutUserView,
     ProfileViewSet,
+    # AddFollowView,
+    FollowViewSet,
+    FollowersViewSet,
+    MyFollowingSet,
+    MyFollowersSet,
+    # UnfollowViewSet,
+    PostViewSet,
+    MyPostsSet,
+    MyFollowingPostsSet,
 )
 
 app_name = "app"
 
 router = DefaultRouter()
 router.register(r"profile", ProfileViewSet)
+# router.register(r"following", FollowViewSet)
+# router.register(r"followers", FollowersViewSet, basename="followers")
+router.register(r"following", MyFollowingSet, basename="following")
+router.register(r"followers", MyFollowersSet, basename="followers")
+router.register(r"post", PostViewSet, basename="post")
+router.register(r"my-posts", MyPostsSet, basename="my-posts")
+router.register(
+    r"following-posts", MyFollowingPostsSet, basename="following-posts"
+)
 
 
 urlpatterns = [
@@ -21,4 +39,5 @@ urlpatterns = [
     path("login/", LoginUserView.as_view(), name="take-token"),
     path("logout/", LogoutUserView.as_view(), name="logout"),
     path("", include(router.urls)),
+    # path("follow/", AddFollowView.as_view(), name="add-follow"),
 ]

@@ -1,4 +1,4 @@
-from django.contrib.auth import get_user_model
+from django.contrib.auth import get_user_model, authenticate
 from django.utils.translation import gettext_lazy as _
 
 from rest_framework import serializers
@@ -54,6 +54,30 @@ class AuthTokenSerializer(serializers.Serializer):
         write_only=True,
     )
     token = serializers.CharField(label=_("Token"), read_only=True)
+
+    def validate(self, attrs):
+        email = attrs.get("email")
+        password = attrs.get("password")
+
+        if email and password:
+            user = authenticate(
+                request=self.context.get("request"),
+                email=email,
+                password=password,
+            )
+
+            # The authenticate call simply returns None for is_active=False
+            # users. (Assuming the default ModelBackend authentication
+            # backend.)
+            if not user:
+                msg = _("Unable to log in with provided credentials.")
+                raise serializers.ValidationError(msg, code="authorization")
+        else:
+            msg = _('Must include "username" and "password".')
+            raise serializers.ValidationError(msg, code="authorization")
+
+        attrs["user"] = user
+        return attrs
 
 
 class ProfileCreateSerializer(serializers.ModelSerializer):
@@ -132,3 +156,122 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Profile
         fields = ("picture", "bio")
+
+
+class FollowSerializer(serializers.ModelSerializer):
+    """Add Following Serializer"""
+
+    follower = serializers.HiddenField(
+        default=serializers.CurrentUserDefault(),
+    )
+
+    class Meta:
+        model = Follow
+        fields = ("id", "follower", "followee")
+
+
+class FollowListSerializer(serializers.ModelSerializer):
+    """Add Following List Serializer"""
+
+    follower = serializers.HiddenField(
+        default=serializers.CurrentUserDefault(),
+    )
+    followee = serializers.StringRelatedField(many=False, read_only=True)
+
+    class Meta:
+        model = Follow
+        fields = ("id", "follower", "followee")
+
+
+class FollowersSerializer(serializers.ModelSerializer):
+    """Add Followers Serializer"""
+
+    follower = serializers.StringRelatedField(many=False, read_only=True)
+
+    class Meta:
+        model = Follow
+        fields = ("id", "follower")
+
+
+class MyFollowingSerializer(serializers.ModelSerializer):
+    following = serializers.StringRelatedField(many=True, read_only=True)
+
+    class Meta:
+        model = get_user_model()
+        fields = ("following",)
+
+
+class MyFollowersSerializer(serializers.ModelSerializer):
+    followers = serializers.StringRelatedField(many=True, read_only=True)
+
+    class Meta:
+        model = get_user_model()
+        fields = ("followers",)
+
+
+class ImageSerializer(serializers.ModelSerializer):
+    """Image Serializer"""
+
+    class Meta:
+        model = Image
+        fields = ("picture", "post")
+
+
+class AllPostsListSerializer(serializers.ModelSerializer):
+    """Post Serializer"""
+
+    author = serializers.SlugRelatedField(
+        slug_field="username", read_only=True, many=False
+    )
+    images = ImageSerializer(many=True, required=False)
+
+    class Meta:
+        model = Post
+        fields = ("id", "author", "content", "images")
+
+
+class PostCreateSerializer(serializers.ModelSerializer):
+    author = serializers.HiddenField(default=serializers.CurrentUserDefault())
+    images = ImageSerializer(many=True, required=False)
+
+    class Meta:
+        model = Post
+        fields = ("id", "author", "content", "images")
+
+    def create(self, validated_data):
+        images_data = validated_data.pop("images", None)
+        post = Post.objects.create(**validated_data)
+        if images_data:
+            for image_data in images_data:
+                Image.objects.create(post=post, **image_data)
+        return post
+
+
+class MyPostsSerializer(serializers.ModelSerializer):
+    images = ImageSerializer(many=True, required=False)
+    author = serializers.HiddenField(default=serializers.CurrentUserDefault())
+
+    class Meta:
+        model = Post
+        fields = ("id", "author", "content", "images")
+
+    def create(self, validated_data):
+        images_data = validated_data.pop("images", None)
+        post = Post.objects.create(**validated_data)
+        if images_data:
+            for image_data in images_data:
+                Image.objects.create(post=post, **image_data)
+        return post
+
+
+class MyFollowingPostsListSerializer(serializers.ModelSerializer):
+    """Post Serializer"""
+
+    author = serializers.SlugRelatedField(
+        slug_field="username", read_only=True, many=False
+    )
+    images = ImageSerializer(many=True, required=False)
+
+    class Meta:
+        model = Post
+        fields = ("id", "author", "content", "images")

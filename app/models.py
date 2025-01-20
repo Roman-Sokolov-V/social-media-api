@@ -54,6 +54,13 @@ class User(AbstractUser):
     """User model"""
 
     email = models.EmailField(_("email address"), unique=True)
+    following = models.ManyToManyField(
+        "self",
+        through="Follow",
+        through_fields=("follower", "followee"),
+        symmetrical=False,
+        related_name="followers",
+    )
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = ["username"]
     objects = UserManager()
@@ -90,16 +97,17 @@ class Follow(models.Model):
     follower = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name="followee",
+        related_name="following_relation",
     )
     followee = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name="followers",
+        related_name="followers_relation",
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        ordering = ["-created_at"]
         constraints = [
             models.UniqueConstraint(
                 fields=["follower", "followee"], name="unique_follow"
@@ -122,6 +130,12 @@ class Follow(models.Model):
             follower=self.follower,
             followee=self.followee,
             error=ValidationError,
+        )
+
+    def __str__(self):
+        return (
+            f"{self.follower.user.username} follows "
+            f"{self.followee.user.username}"
         )
 
 

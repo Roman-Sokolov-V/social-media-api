@@ -1,8 +1,9 @@
 from datetime import datetime
 
+from django.contrib.auth import get_user_model
 from django.shortcuts import render, get_object_or_404
 
-from rest_framework import viewsets, generics
+from rest_framework import viewsets, generics, mixins
 from rest_framework.authtoken.views import ObtainAuthToken
 from rest_framework.settings import api_settings
 from rest_framework.views import APIView
@@ -20,8 +21,19 @@ from app.serializers import (
     ProfileCreateSerializer,
     ProfileDetailSerializer,
     ProfileUpdateSerializer,
+    FollowSerializer,
+    FollowListSerializer,
+    FollowersSerializer,
+    MyFollowingSerializer,
+    MyFollowersSerializer,
+    # FollowDetailSerializer,
+    # UnfollowingSerializer,
+    AllPostsListSerializer,
+    PostCreateSerializer,
+    MyPostsSerializer,
+    MyFollowingPostsListSerializer,
 )
-from app.models import Profile
+from app.models import Profile, Follow, Post
 
 
 class CreateUserView(generics.CreateAPIView):
@@ -98,3 +110,87 @@ class ProfileViewSet(viewsets.ModelViewSet):
                 #     "Invalid date range format. Use 'YYYY-MM-DD,YYYY-MM-DD'."
                 # )
         return queryset
+
+
+class FollowViewSet(
+    mixins.ListModelMixin,
+    mixins.RetrieveModelMixin,
+    mixins.CreateModelMixin,
+    mixins.DestroyModelMixin,
+    viewsets.GenericViewSet,
+):
+    queryset = Follow.objects.all()
+    serializer_class = FollowSerializer
+
+    def get_serializer_class(self):
+        if self.action in ("list", "retrieve"):
+            return FollowListSerializer
+        elif self.action == "retrieve":
+            return FollowListSerializer
+        return self.serializer_class
+
+    def get_queryset(self):
+        return self.queryset.filter(follower_id=self.request.user.id)
+
+
+class FollowersViewSet(
+    mixins.ListModelMixin,
+    viewsets.GenericViewSet,
+):
+    queryset = Follow.objects.all()
+    serializer_class = FollowersSerializer
+
+    def get_queryset(self):
+        return self.queryset.filter(followee_id=self.request.user.id)
+
+
+class MyFollowingSet(
+    mixins.ListModelMixin,
+    viewsets.GenericViewSet,
+):
+    serializer_class = MyFollowingSerializer
+    queryset = get_user_model().objects.all()
+
+    def get_queryset(self):
+        return self.queryset.filter(id=self.request.user.id)
+
+
+class MyFollowersSet(
+    mixins.ListModelMixin,
+    viewsets.GenericViewSet,
+):
+    serializer_class = MyFollowersSerializer
+    queryset = get_user_model().objects.all()
+
+    def get_queryset(self):
+        return self.queryset.filter(id=self.request.user.id)
+
+
+class PostViewSet(viewsets.ModelViewSet):
+    queryset = Post.objects.all()
+    serializer_class = AllPostsListSerializer
+
+    def get_serializer_class(self):
+        if self.action in ("create",):
+            return PostCreateSerializer
+        return self.serializer_class
+
+
+class MyPostsSet(viewsets.ModelViewSet):
+    queryset = Post.objects.all()
+    serializer_class = MyPostsSerializer
+
+    def get_queryset(self):
+        return self.queryset.filter(author=self.request.user.id)
+
+
+class MyFollowingPostsSet(
+    mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet
+):
+    queryset = Post.objects.all()
+    serializer_class = MyFollowingPostsListSerializer
+
+    def get_queryset(self):
+        return self.queryset.filter(
+            author__in=self.request.user.following.all()
+        )
