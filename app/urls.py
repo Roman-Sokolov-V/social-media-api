@@ -17,6 +17,7 @@ from app.views import (
     PostViewSet,
     MyPostsSet,
     MyFollowingPostsSet,
+    ImageViewSet,
 )
 
 app_name = "app"
@@ -32,6 +33,7 @@ router.register(r"my-posts", MyPostsSet, basename="my-posts")
 router.register(
     r"following-posts", MyFollowingPostsSet, basename="following-posts"
 )
+router.register(r"image", ImageViewSet, basename="image")
 
 
 urlpatterns = [

@@ -1,6 +1,7 @@
 from django.contrib.auth.base_user import BaseUserManager
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+from django.utils import timezone
 from django.utils.text import slugify
 from django.utils.translation import gettext as _
 
@@ -139,6 +140,13 @@ class Follow(models.Model):
         )
 
 
+class Hashtag(models.Model):
+    text = models.CharField(max_length=100, unique=True)
+
+    def __str__(self):
+        return self.text
+
+
 class Post(models.Model):
     """Post model"""
 
@@ -148,6 +156,9 @@ class Post(models.Model):
         related_name="posts",
     )
     content = models.TextField()
+    hashtags = models.ManyToManyField(
+        Hashtag, related_name="posts", blank=True
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
 

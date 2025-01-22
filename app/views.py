@@ -3,15 +3,16 @@ from datetime import datetime
 from django.contrib.auth import get_user_model
 from django.shortcuts import render, get_object_or_404
 
-from rest_framework import viewsets, generics, mixins
+from rest_framework import viewsets, generics, mixins, permissions, status
 from rest_framework.authtoken.views import ObtainAuthToken
 from rest_framework.settings import api_settings
 from rest_framework.views import APIView
 from rest_framework import viewsets
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import ValidationError
+from rest_framework.decorators import action
 
 from app.permissions import IsOwnerOrAuthenticatedReadOnly
 from app.serializers import (
@@ -32,8 +33,9 @@ from app.serializers import (
     PostCreateSerializer,
     MyPostsSerializer,
     MyFollowingPostsListSerializer,
+    ImageCreateSerializer,
 )
-from app.models import Profile, Follow, Post
+from app.models import Profile, Follow, Post, Image
 
 
 class CreateUserView(generics.CreateAPIView):
@@ -60,7 +62,7 @@ class ProfileViewSet(viewsets.ModelViewSet):
     permission_classes = (IsOwnerOrAuthenticatedReadOnly,)
 
     def get_serializer_class(self):
-        if self.action in ("list",):
+        if self.action == "list":
             return ProfileListSerializer
         elif self.action == "retrieve":
             return ProfileDetailSerializer
@@ -166,14 +168,45 @@ class MyFollowersSet(
         return self.queryset.filter(id=self.request.user.id)
 
 
+#############################################################
 class PostViewSet(viewsets.ModelViewSet):
     queryset = Post.objects.all()
     serializer_class = AllPostsListSerializer
 
     def get_serializer_class(self):
-        if self.action in ("create",):
+        if self.action == "create":
             return PostCreateSerializer
+        if self.action == "upload_image":
+            return ImageCreateSerializer
         return self.serializer_class
+
+    @action(detail=False, methods=["GET"])
+    def my_posts(self, request, *args, **kwargs):
+        posts = Post.objects.all().filter(author_id=self.request.user.id)
+        serialiser = self.get_serializer(posts, many=True)
+        return Response(serialiser.data, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=["GET"])
+    def my_following(self, request, *args, **kwargs):
+        posts = Post.objects.all().filter(
+            author__in=self.request.user.following.all()
+        )
+        serialiser = self.get_serializer(posts, many=True)
+        return Response(serialiser.data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["Post"])
+    def upload_image(self, request, *args, **kwargs):
+        post = self.get_object()
+        data = request.data
+        data["post"] = post.id
+        serializer = self.get_serializer(data=data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+####################################################################
 
 
 class MyPostsSet(viewsets.ModelViewSet):
@@ -194,3 +227,8 @@ class MyFollowingPostsSet(
         return self.queryset.filter(
             author__in=self.request.user.following.all()
         )
+
+
+class ImageViewSet(viewsets.ModelViewSet):
+    queryset = Image.objects.all()
+    serializer_class = ImageCreateSerializer

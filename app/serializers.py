@@ -1,4 +1,5 @@
 from django.contrib.auth import get_user_model, authenticate
+from django.db import transaction
 from django.utils.translation import gettext_lazy as _
 
 from rest_framework import serializers
@@ -209,12 +210,37 @@ class MyFollowersSerializer(serializers.ModelSerializer):
         fields = ("followers",)
 
 
-class ImageSerializer(serializers.ModelSerializer):
-    """Image Serializer"""
+class ImageCreateSerializer(serializers.ModelSerializer):
+    """Image Create Serializer"""
 
     class Meta:
         model = Image
-        fields = ("picture", "post")
+        fields = (
+            "post",
+            "picture",
+        )
+
+
+###################################################################
+class ImageSerializer(serializers.Serializer):
+    """Image Serializer"""
+
+    picture = serializers.ImageField()
+
+    # class Meta:
+    #     model = Image
+    #     fields = ("picture",)
+
+
+class HashtagSerializer(serializers.Serializer):
+    text = serializers.CharField()
+
+    # class Meta:
+    #     model = Hashtag
+    #     fields = ("text",)
+
+
+########################################################################
 
 
 class AllPostsListSerializer(serializers.ModelSerializer):
@@ -227,41 +253,60 @@ class AllPostsListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Post
-        fields = ("id", "author", "content", "images")
+        fields = ("id", "author", "content", "hashtags", "images")
 
 
 class PostCreateSerializer(serializers.ModelSerializer):
     author = serializers.HiddenField(default=serializers.CurrentUserDefault())
-    images = ImageSerializer(many=True, required=False)
+    images = serializers.ImageField()
+    hashtags = HashtagSerializer(many=True, required=False)
 
     class Meta:
         model = Post
-        fields = ("id", "author", "content", "images")
+        fields = ("id", "author", "content", "images", "hashtags")
 
     def create(self, validated_data):
-        images_data = validated_data.pop("images", None)
-        post = Post.objects.create(**validated_data)
-        if images_data:
-            for image_data in images_data:
-                Image.objects.create(post=post, **image_data)
-        return post
+        with transaction.atomic():
+            image_data = validated_data.pop("images", [])
+            hashtags_data = validated_data.pop("hashtags", [])
+            post = Post.objects.create(**validated_data)
+            if image_data:
+                Image.objects.create(post=post, picture=image_data)
+            if hashtags_data:
+                for hashtag_data in hashtags_data:
+                    hashtag, created = Hashtag.objects.get_or_create(
+                        text=hashtag_data["text"]
+                    )
+                    post.hashtags.add(hashtag)
+            return post
+
+    def validate_hashtags(self, value):
+        return value
 
 
 class MyPostsSerializer(serializers.ModelSerializer):
-    images = ImageSerializer(many=True, required=False)
+    images = ImageSerializer(many=True, required=False, read_only=False)
     author = serializers.HiddenField(default=serializers.CurrentUserDefault())
+    # hashtags = HashtagSerializer(many=True, required=False)
 
     class Meta:
         model = Post
         fields = ("id", "author", "content", "images")
 
     def create(self, validated_data):
-        images_data = validated_data.pop("images", None)
-        post = Post.objects.create(**validated_data)
-        if images_data:
-            for image_data in images_data:
-                Image.objects.create(post=post, **image_data)
-        return post
+        with transaction.atomic():
+            image_data = validated_data.pop("images", [])
+            hashtags_data = validated_data.pop("hashtags", [])
+            post = Post.objects.create(**validated_data)
+            if image_data:
+                Image.objects.create(post=post, picture=image_data)
+            if hashtags_data:
+                for hashtag_data in hashtags_data:
+                    hashtag, created = Hashtag.objects.get_or_create(
+                        text=hashtag_data["text"]
+                    )
+                    post.hashtags.add(hashtag)
+            return post
 
 
 class MyFollowingPostsListSerializer(serializers.ModelSerializer):
