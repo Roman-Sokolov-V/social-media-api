@@ -15,9 +15,9 @@ from app.views import (
     MyFollowersSet,
     # UnfollowViewSet,
     PostViewSet,
-    MyPostsSet,
-    MyFollowingPostsSet,
-    ImageViewSet,
+    # MyPostsSet,
+    # MyFollowingPostsSet,
+    # ImageViewSet,
 )
 
 app_name = "app"
@@ -29,11 +29,11 @@ router.register(r"profile", ProfileViewSet)
 router.register(r"following", MyFollowingSet, basename="following")
 router.register(r"followers", MyFollowersSet, basename="followers")
 router.register(r"post", PostViewSet, basename="post")
-router.register(r"my-posts", MyPostsSet, basename="my-posts")
-router.register(
-    r"following-posts", MyFollowingPostsSet, basename="following-posts"
-)
-router.register(r"image", ImageViewSet, basename="image")
+# router.register(r"my-posts", MyPostsSet, basename="my-posts")
+# router.register(
+#     r"following-posts", MyFollowingPostsSet, basename="following-posts"
+# )
+# router.register(r"image", ImageViewSet, basename="image")
 
 
 urlpatterns = [

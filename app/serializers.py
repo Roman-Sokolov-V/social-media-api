@@ -220,6 +220,14 @@ class ImageCreateSerializer(serializers.ModelSerializer):
             "picture",
         )
 
+    def validate(self, data):
+        post = data["post"]
+        if self.context["request"].user != post.author:
+            raise serializers.ValidationError(
+                {"post": "You are not the author of this post."}
+            )
+        return data
+
 
 ###################################################################
 class ImageSerializer(serializers.Serializer):
@@ -320,3 +328,40 @@ class MyFollowingPostsListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Post
         fields = ("id", "author", "content", "images")
+
+
+class CommentCreateSerializer(serializers.ModelSerializer):
+    """Feedback create Serializer"""
+
+    reviewer = serializers.HiddenField(
+        default=serializers.CurrentUserDefault()
+    )
+    post = serializers.HiddenField(
+        default=None  # Значення буде встановлено через контекст
+    )
+
+    class Meta:
+        model = Comment
+        fields = ("reviewer", "post", "content")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Автоматично встановлюємо поточний пост із контексту
+        self.fields["post"].default = self.context.get("post")
+
+    def validate(self, attrs):
+        data = super(CommentCreateSerializer, self).validate(attrs)
+        reviewer = data.get("reviewer")
+        post = data.get("post")
+        Comment.validate_feedback(
+            reviewer=reviewer,
+            post=post,
+            error=serializers.ValidationError,
+        )
+        return data
+
+    def validate_post(self, value):
+        # Перевірка, чи пост визначений (зазвичай це буде в контексті)
+        if value is None:
+            raise serializers.ValidationError("Post must be defined.")
+        return value

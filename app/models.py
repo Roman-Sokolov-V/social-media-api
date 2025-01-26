@@ -1,6 +1,7 @@
 from django.contrib.auth.base_user import BaseUserManager
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+from django.db.models import Model
 from django.utils import timezone
 from django.utils.text import slugify
 from django.utils.translation import gettext as _
@@ -187,7 +188,7 @@ class Image(models.Model):
             img.save(self.picture.path)
 
 
-class Feedback(models.Model):
+class Comment(models.Model):
     """Feedback model"""
 
     reviewer = models.ForeignKey(
@@ -198,18 +199,40 @@ class Feedback(models.Model):
     post = models.ForeignKey(
         Post, on_delete=models.CASCADE, related_name="feedbacks"
     )
-    comment = models.TextField(blank=True, null=True)
-    likes = models.BooleanField(blank=True, null=True)
+    content = models.TextField(blank=True, null=True)
 
     @staticmethod
-    def feedback_not_empty(comment, likes, error):
-        if not comment and not likes:
-            raise error(
-                "Feedback cannot be empty. Leave comment or/and likes."
-            )
+    def validate_feedback(
+        reviewer: settings.AUTH_USER_MODEL,
+        post: Post,
+        error: Exception,
+    ) -> None:
 
+        if reviewer == post.author:
+            raise error("You cannot comment your post")
+
+    ##############замість такої валідації це можна було визначити в constraints,
+    # але який підхід кращий?
     def clean(self):
         """Validate Feedback instance."""
-        self.feedback_not_empty(
-            comment=self.comment, likes=self.likes, error=ValidationError
+        self.validate_feedback(
+            reviewer=self.reviewer,
+            post=self.post,
+            error=ValidationError,
         )
+
+
+class Like(models.Model):
+    """Like model"""
+    post = models.ForeignKey(
+        Post, on_delete=models.CASCADE, related_name="likes"
+    )
+    rewiewer = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="likes",
+    )
+    is_likes = models.BooleanField(default=False)
+
+    class Meta:
+        unique_together = ("post", "rewiewer")

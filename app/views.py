@@ -34,6 +34,7 @@ from app.serializers import (
     MyPostsSerializer,
     MyFollowingPostsListSerializer,
     ImageCreateSerializer,
+    CommentCreateSerializer,
 )
 from app.models import Profile, Follow, Post, Image
 
@@ -168,7 +169,6 @@ class MyFollowersSet(
         return self.queryset.filter(id=self.request.user.id)
 
 
-#############################################################
 class PostViewSet(viewsets.ModelViewSet):
     queryset = Post.objects.all()
     serializer_class = AllPostsListSerializer
@@ -176,8 +176,11 @@ class PostViewSet(viewsets.ModelViewSet):
     def get_serializer_class(self):
         if self.action == "create":
             return PostCreateSerializer
-        if self.action == "upload_image":
+        elif self.action == "upload_image":
             return ImageCreateSerializer
+        elif self.action == "comment":
+            return CommentCreateSerializer
+
         return self.serializer_class
 
     @action(detail=False, methods=["GET"])
@@ -194,7 +197,9 @@ class PostViewSet(viewsets.ModelViewSet):
         serialiser = self.get_serializer(posts, many=True)
         return Response(serialiser.data, status=status.HTTP_200_OK)
 
-    @action(detail=True, methods=["Post"])
+    @action(detail=True, methods=["зost"])  # в формі є можливість обрати
+    # будьякий пост, не дивлячись на це використаний буде саме поточний
+    # пост, хотілось би видалити можливість обирати пост
     def upload_image(self, request, *args, **kwargs):
         post = self.get_object()
         data = request.data
@@ -205,30 +210,47 @@ class PostViewSet(viewsets.ModelViewSet):
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-
-####################################################################
-
-
-class MyPostsSet(viewsets.ModelViewSet):
-    queryset = Post.objects.all()
-    serializer_class = MyPostsSerializer
-
-    def get_queryset(self):
-        return self.queryset.filter(author=self.request.user.id)
-
-
-class MyFollowingPostsSet(
-    mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet
-):
-    queryset = Post.objects.all()
-    serializer_class = MyFollowingPostsListSerializer
-
-    def get_queryset(self):
-        return self.queryset.filter(
-            author__in=self.request.user.following.all()
+    @action(detail=True, methods=["post"])
+    def comment(self, request, *args, **kwargs):
+        post = self.get_object()
+        # data = request.data.copy()
+        # data["post"] = post.id
+        # serializer = self.get_serializer(data=data)
+        serializer = self.get_serializer(
+            data=request.data,
+            context={"request": request, "post": post},  #
+            # Як це працює (разом з __init__ в серіалізаторі)
         )
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class ImageViewSet(viewsets.ModelViewSet):
-    queryset = Image.objects.all()
-    serializer_class = ImageCreateSerializer
+# Далі реалізовано те саме тільки в окремих ендпоінтах###################
+
+
+# class MyPostsSet(viewsets.ModelViewSet):
+#     queryset = Post.objects.all()
+#     serializer_class = MyPostsSerializer
+#
+#     def get_queryset(self):
+#         return self.queryset.filter(author=self.request.user.id)
+#
+#
+# class MyFollowingPostsSet(
+#     mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet
+# ):
+#     queryset = Post.objects.all()
+#     serializer_class = MyFollowingPostsListSerializer
+#
+#     def get_queryset(self):
+#         return self.queryset.filter(
+#             author__in=self.request.user.following.all()
+#         )
+#
+#
+# class ImageViewSet(viewsets.ModelViewSet):
+#     queryset = Image.objects.all()
+#     serializer_class = ImageCreateSerializer
+##########################################################################
