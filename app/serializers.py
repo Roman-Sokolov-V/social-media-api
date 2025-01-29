@@ -243,6 +243,9 @@ class AllPostsListSerializer(serializers.ModelSerializer):
         slug_field="username", read_only=True, many=False
     )
     images = ImageSerializer(many=True, required=False)
+    hashtags = serializers.SlugRelatedField(
+        many=True, read_only=True, slug_field="text"
+    )
 
     class Meta:
         model = Post
@@ -250,9 +253,7 @@ class AllPostsListSerializer(serializers.ModelSerializer):
 
 
 class PostCreateSerializer(serializers.ModelSerializer):
-    author = serializers.HiddenField(
-        default=get_user_model().objects.first,
-    )  # serializers.CurrentUserDefault())
+    author = serializers.HiddenField(default=serializers.CurrentUserDefault())
     images = serializers.ImageField(required=False)
     hashtags = HashtagSerializer(many=True, required=False)
 

@@ -186,6 +186,21 @@ class PostViewSet(viewsets.ModelViewSet):
             return LikePostSerializer
         return self.serializer_class
 
+    def get_queryset(self):
+        queryset = self.queryset
+        tags = self.request.query_params.get("tags")
+        author = self.request.query_params.get("author")
+        content = self.request.query_params.get("content")
+        if tags:
+            tags = tags.split(",")
+            queryset = queryset.filter(hashtags__text__in=tags)
+        if author:
+            queryset = queryset.filter(author__username__icontains=author)
+        if content:
+            queryset = queryset.filter(content__icontains=content)
+
+        return queryset.distinct()
+
     @action(detail=False, methods=["GET"])
     def my_posts(self, request, *args, **kwargs):
         posts = Post.objects.all().filter(author_id=self.request.user.id)
