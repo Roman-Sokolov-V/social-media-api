@@ -5,12 +5,12 @@ from django.db.models import Model
 from django.utils import timezone
 from django.utils.text import slugify
 from django.utils.translation import gettext as _
+from django.core.exceptions import ValidationError
+from django.conf import settings
 
 from PIL import Image as PILImage
 import uuid
 from pathlib import Path
-
-from django.conf import settings
 
 
 class UserManager(BaseUserManager):
@@ -161,6 +161,26 @@ class Post(models.Model):
         Hashtag, related_name="posts", blank=True
     )
     created_at = models.DateTimeField(auto_now_add=True)
+    is_published = models.BooleanField(default=True)
+    time_to_publicate = models.DateTimeField(null=True, blank=True)
+
+    @staticmethod
+    def validate_post(is_published, time_to_publicate, error):
+        """Ensure time_to_publicate is provided if the post is not published."""
+        if is_published is False and time_to_publicate is None:
+            raise error(
+                "Choose a time to_publicate or set is_published = True if you want to publish now."
+            )
+        if is_published is False and time_to_publicate <= timezone.now():
+            raise error("You must set a future time for `time_to_publicate`.")
+
+    def clean(self):
+        """Ensure time_to_publicate is in the future and create Celery task"""
+        self.validate_post(
+            is_published=self.is_published,
+            time_to_publicate=self.time_to_publicate,
+            error=ValidationError,
+        )
 
 
 def upload_image(instance: "Image", filename: str) -> Path:
@@ -197,7 +217,7 @@ class Comment(models.Model):
         related_name="feedbacks",
     )
     post = models.ForeignKey(
-        Post, on_delete=models.CASCADE, related_name="feedbacks"
+        Post, on_delete=models.CASCADE, related_name="comments"
     )
     content = models.TextField(blank=True, null=True)
 
@@ -224,10 +244,11 @@ class Comment(models.Model):
 
 class Like(models.Model):
     """Like model"""
+
     post = models.ForeignKey(
         Post, on_delete=models.CASCADE, related_name="likes"
     )
-    rewiewer = models.ForeignKey(
+    reviewer = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="likes",
@@ -235,4 +256,21 @@ class Like(models.Model):
     is_likes = models.BooleanField(default=False)
 
     class Meta:
-        unique_together = ("post", "rewiewer")
+        unique_together = ("post", "reviewer")
+
+    @staticmethod
+    def validate_like(
+        reviewer: settings.AUTH_USER_MODEL,
+        post: Post,
+        error: Exception,
+    ) -> None:
+        if reviewer == post.author:
+            raise error("You cannot like your post")
+
+    def clean(self):
+        """Validate Feedback instance."""
+        self.validate_like(
+            reviewer=self.reviewer,
+            post=self.post,
+            error=ValidationError,
+        )

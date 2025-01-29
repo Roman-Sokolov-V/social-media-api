@@ -4,9 +4,10 @@ from django.utils.translation import gettext_lazy as _
 
 from rest_framework import serializers
 from rest_framework.authtoken.models import Token
+from rest_framework.validators import UniqueValidator
 
 from app.models import *
-from rest_framework.validators import UniqueValidator
+from app.tasks import publish_post
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -66,10 +67,6 @@ class AuthTokenSerializer(serializers.Serializer):
                 email=email,
                 password=password,
             )
-
-            # The authenticate call simply returns None for is_active=False
-            # users. (Assuming the default ModelBackend authentication
-            # backend.)
             if not user:
                 msg = _("Unable to log in with provided credentials.")
                 raise serializers.ValidationError(msg, code="authorization")
@@ -229,26 +226,14 @@ class ImageCreateSerializer(serializers.ModelSerializer):
         return data
 
 
-###################################################################
 class ImageSerializer(serializers.Serializer):
     """Image Serializer"""
 
     picture = serializers.ImageField()
 
-    # class Meta:
-    #     model = Image
-    #     fields = ("picture",)
-
 
 class HashtagSerializer(serializers.Serializer):
     text = serializers.CharField()
-
-    # class Meta:
-    #     model = Hashtag
-    #     fields = ("text",)
-
-
-########################################################################
 
 
 class AllPostsListSerializer(serializers.ModelSerializer):
@@ -265,18 +250,30 @@ class AllPostsListSerializer(serializers.ModelSerializer):
 
 
 class PostCreateSerializer(serializers.ModelSerializer):
-    author = serializers.HiddenField(default=serializers.CurrentUserDefault())
-    images = serializers.ImageField()
+    author = serializers.HiddenField(
+        default=get_user_model().objects.first,
+    )  # serializers.CurrentUserDefault())
+    images = serializers.ImageField(required=False)
     hashtags = HashtagSerializer(many=True, required=False)
 
     class Meta:
         model = Post
-        fields = ("id", "author", "content", "images", "hashtags")
+        fields = (
+            "id",
+            "author",
+            "content",
+            "images",
+            "hashtags",
+            "is_published",
+            "time_to_publicate",
+        )
 
     def create(self, validated_data):
         with transaction.atomic():
             image_data = validated_data.pop("images", [])
             hashtags_data = validated_data.pop("hashtags", [])
+            is_published = validated_data.get("is_published")
+            time_to_publicate = validated_data.get("time_to_publicate")
             post = Post.objects.create(**validated_data)
             if image_data:
                 Image.objects.create(post=post, picture=image_data)
@@ -286,35 +283,65 @@ class PostCreateSerializer(serializers.ModelSerializer):
                         text=hashtag_data["text"]
                     )
                     post.hashtags.add(hashtag)
+            if is_published is False and time_to_publicate:
+                publish_post.apply_async(
+                    (post.id,), eta=post.time_to_publicate
+                )
             return post
 
     def validate_hashtags(self, value):
         return value
 
+    def validate(self, attrs):
+        data = super(PostCreateSerializer, self).validate(attrs)
+        is_published = data.get("is_published")
+        time_to_publicate = data.get("time_to_publicate")
+        Post.validate_post(
+            is_published=is_published,
+            time_to_publicate=time_to_publicate,
+            error=serializers.ValidationError,
+        )
+        return data
 
-class MyPostsSerializer(serializers.ModelSerializer):
-    images = ImageSerializer(many=True, required=False, read_only=False)
-    author = serializers.HiddenField(default=serializers.CurrentUserDefault())
-    # hashtags = HashtagSerializer(many=True, required=False)
 
-    class Meta:
-        model = Post
-        fields = ("id", "author", "content", "images")
-
-    def create(self, validated_data):
-        with transaction.atomic():
-            image_data = validated_data.pop("images", [])
-            hashtags_data = validated_data.pop("hashtags", [])
-            post = Post.objects.create(**validated_data)
-            if image_data:
-                Image.objects.create(post=post, picture=image_data)
-            if hashtags_data:
-                for hashtag_data in hashtags_data:
-                    hashtag, created = Hashtag.objects.get_or_create(
-                        text=hashtag_data["text"]
-                    )
-                    post.hashtags.add(hashtag)
-            return post
+# class MyPostsSerializer(serializers.ModelSerializer):
+#     images = ImageSerializer(many=True, required=False, read_only=False)
+#     author = serializers.HiddenField(default=serializers.CurrentUserDefault())
+#
+#     class Meta:
+#         model = Post
+#         fields = (
+#             "id",
+#             "author",
+#             "content",
+#             "images",
+#         )
+#
+#     def create(self, validated_data):
+#         with transaction.atomic():
+#             image_data = validated_data.pop("images", [])
+#             hashtags_data = validated_data.pop("hashtags", [])
+#             post = Post.objects.create(**validated_data)
+#             if image_data:
+#                 Image.objects.create(post=post, picture=image_data)
+#             if hashtags_data:
+#                 for hashtag_data in hashtags_data:
+#                     hashtag, created = Hashtag.objects.get_or_create(
+#                         text=hashtag_data["text"]
+#                     )
+#                     post.hashtags.add(hashtag)
+#             return post
+#
+#     def validate(self, attrs):
+#         data = super(MyPostsSerializer, self).validate(attrs)
+#         is_published = data.get("is_published")
+#         time_to_publicate = data.get("time_to_publicate")
+#         Post.validate_post(
+#             is_published=is_published,
+#             time_to_publicate=time_to_publicate,
+#             error=serializers.ValidationError,
+#         )
+#         return data
 
 
 class MyFollowingPostsListSerializer(serializers.ModelSerializer):
@@ -365,3 +392,37 @@ class CommentCreateSerializer(serializers.ModelSerializer):
         if value is None:
             raise serializers.ValidationError("Post must be defined.")
         return value
+
+
+class CommentListSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = Comment
+        fields = ("id", "reviewer", "content", "post")
+
+
+class LikePostSerializer(serializers.ModelSerializer):
+    reviewer = serializers.HiddenField(
+        default=serializers.CurrentUserDefault()
+    )
+    post = serializers.HiddenField(default=None)
+
+    class Meta:
+        model = Like
+        fields = ("post", "reviewer", "is_likes")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Автоматично встановлюємо поточний пост із контексту
+        self.fields["post"].default = self.context.get("post")
+
+    def validate(self, attrs):
+        data = super(LikePostSerializer, self).validate(attrs)
+        reviewer = data.get("reviewer")
+        post = data.get("post")
+        Like.validate_like(
+            reviewer=reviewer,
+            post=post,
+            error=serializers.ValidationError,
+        )
+        return data
