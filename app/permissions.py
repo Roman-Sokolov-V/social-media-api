@@ -8,8 +8,11 @@ class IsOwnerOrAuthenticatedReadOnly(BasePermission):
     """
 
     def has_object_permission(self, request, view, obj):
-        return bool(
-            request.method in SAFE_METHODS
-            and request.user.is_authenticated
-            or obj.user == request.user
-        )
+        if request.method in SAFE_METHODS:
+            return request.user.is_authenticated
+        if hasattr(obj, "user"):
+            return obj.user == request.user
+        if hasattr(obj, "author"):
+            return obj.author == request.user
+        if hasattr(obj, "reviewer"):
+            return obj.reviewer == request.user

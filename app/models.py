@@ -219,7 +219,7 @@ class Comment(models.Model):
     post = models.ForeignKey(
         Post, on_delete=models.CASCADE, related_name="comments"
     )
-    content = models.TextField(blank=True, null=True)
+    content = models.TextField()
 
     @staticmethod
     def validate_feedback(

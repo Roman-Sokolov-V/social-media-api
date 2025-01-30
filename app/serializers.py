@@ -48,6 +48,8 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class AuthTokenSerializer(serializers.Serializer):
+    """Serializer for authenticating requests with"""
+
     email = serializers.CharField(label=_("Email"), write_only=True)
     password = serializers.CharField(
         label=_("Password"),
@@ -78,8 +80,12 @@ class AuthTokenSerializer(serializers.Serializer):
         return attrs
 
 
+class LogoutSerializer(serializers.Serializer):
+    pass
+
+
 class ProfileCreateSerializer(serializers.ModelSerializer):
-    """Profile Serializer"""
+    """Profile create Serializer"""
 
     user = serializers.HiddenField(
         default=serializers.CurrentUserDefault(),
@@ -109,7 +115,7 @@ class ProfileCreateSerializer(serializers.ModelSerializer):
 
 
 class ProfileListSerializer(serializers.ModelSerializer):
-    """Profile Serializer"""
+    """Profile list Serializer"""
 
     user = serializers.StringRelatedField(many=False, read_only=True)
     picture = serializers.URLField(read_only=True)
@@ -121,7 +127,7 @@ class ProfileListSerializer(serializers.ModelSerializer):
 
 
 class ProfileDetailSerializer(serializers.ModelSerializer):
-    """Profile Serializer"""
+    """Profile detail Serializer"""
 
     username = serializers.CharField(source="user.username", read_only=True)
     email = serializers.EmailField(source="user.email", read_only=True)
@@ -169,7 +175,7 @@ class FollowSerializer(serializers.ModelSerializer):
 
 
 class FollowListSerializer(serializers.ModelSerializer):
-    """Add Following List Serializer"""
+    """Following List Serializer"""
 
     follower = serializers.HiddenField(
         default=serializers.CurrentUserDefault(),
@@ -182,7 +188,7 @@ class FollowListSerializer(serializers.ModelSerializer):
 
 
 class FollowersSerializer(serializers.ModelSerializer):
-    """Add Followers Serializer"""
+    """Followers Serializer"""
 
     follower = serializers.StringRelatedField(many=False, read_only=True)
 
@@ -192,6 +198,8 @@ class FollowersSerializer(serializers.ModelSerializer):
 
 
 class MyFollowingSerializer(serializers.ModelSerializer):
+    """My Following Serializer"""
+
     following = serializers.StringRelatedField(many=True, read_only=True)
 
     class Meta:
@@ -200,6 +208,8 @@ class MyFollowingSerializer(serializers.ModelSerializer):
 
 
 class MyFollowersSerializer(serializers.ModelSerializer):
+    """MyFollowers Serializer"""
+
     followers = serializers.StringRelatedField(many=True, read_only=True)
 
     class Meta:
@@ -208,7 +218,7 @@ class MyFollowersSerializer(serializers.ModelSerializer):
 
 
 class ImageCreateSerializer(serializers.ModelSerializer):
-    """Image Create Serializer"""
+    """Image Create Serializer for post extra action"""
 
     class Meta:
         model = Image
@@ -227,12 +237,14 @@ class ImageCreateSerializer(serializers.ModelSerializer):
 
 
 class ImageSerializer(serializers.Serializer):
-    """Image Serializer"""
+    """Image Serializer, uses in AllPostsListSerializer"""
 
     picture = serializers.ImageField()
 
 
 class HashtagSerializer(serializers.Serializer):
+    """Hashtag Serializer"""
+
     text = serializers.CharField()
 
 
@@ -270,6 +282,8 @@ class PostCreateSerializer(serializers.ModelSerializer):
         )
 
     def create(self, validated_data):
+        """create and return a new `Post` instance, given the validated
+        data, if added create new `Image` instance, new `Hashtag` instance"""
         with transaction.atomic():
             image_data = validated_data.pop("images", [])
             hashtags_data = validated_data.pop("hashtags", [])
@@ -305,46 +319,6 @@ class PostCreateSerializer(serializers.ModelSerializer):
         return data
 
 
-# class MyPostsSerializer(serializers.ModelSerializer):
-#     images = ImageSerializer(many=True, required=False, read_only=False)
-#     author = serializers.HiddenField(default=serializers.CurrentUserDefault())
-#
-#     class Meta:
-#         model = Post
-#         fields = (
-#             "id",
-#             "author",
-#             "content",
-#             "images",
-#         )
-#
-#     def create(self, validated_data):
-#         with transaction.atomic():
-#             image_data = validated_data.pop("images", [])
-#             hashtags_data = validated_data.pop("hashtags", [])
-#             post = Post.objects.create(**validated_data)
-#             if image_data:
-#                 Image.objects.create(post=post, picture=image_data)
-#             if hashtags_data:
-#                 for hashtag_data in hashtags_data:
-#                     hashtag, created = Hashtag.objects.get_or_create(
-#                         text=hashtag_data["text"]
-#                     )
-#                     post.hashtags.add(hashtag)
-#             return post
-#
-#     def validate(self, attrs):
-#         data = super(MyPostsSerializer, self).validate(attrs)
-#         is_published = data.get("is_published")
-#         time_to_publicate = data.get("time_to_publicate")
-#         Post.validate_post(
-#             is_published=is_published,
-#             time_to_publicate=time_to_publicate,
-#             error=serializers.ValidationError,
-#         )
-#         return data
-
-
 class MyFollowingPostsListSerializer(serializers.ModelSerializer):
     """Post Serializer"""
 
@@ -359,13 +333,10 @@ class MyFollowingPostsListSerializer(serializers.ModelSerializer):
 
 
 class CommentCreateSerializer(serializers.ModelSerializer):
-    """Feedback create Serializer"""
+    """Comment create Serializer"""
 
     reviewer = serializers.HiddenField(
         default=serializers.CurrentUserDefault()
-    )
-    post = serializers.HiddenField(
-        default=None  # Значення буде встановлено через контекст
     )
 
     class Meta:
@@ -374,7 +345,6 @@ class CommentCreateSerializer(serializers.ModelSerializer):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Автоматично встановлюємо поточний пост із контексту
         self.fields["post"].default = self.context.get("post")
 
     def validate(self, attrs):
@@ -388,11 +358,14 @@ class CommentCreateSerializer(serializers.ModelSerializer):
         )
         return data
 
-    def validate_post(self, value):
-        # Перевірка, чи пост визначений (зазвичай це буде в контексті)
-        if value is None:
-            raise serializers.ValidationError("Post must be defined.")
-        return value
+
+class CommentUpdateSerializer(serializers.ModelSerializer):
+    """Comment update Serializer"""
+
+    class Meta:
+        model = Comment
+        fields = ("reviewer", "post", "content")
+        read_only_fields = ("reviewer", "post")
 
 
 class CommentListSerializer(serializers.ModelSerializer):
@@ -402,7 +375,36 @@ class CommentListSerializer(serializers.ModelSerializer):
         fields = ("id", "reviewer", "content", "post")
 
 
-class LikePostSerializer(serializers.ModelSerializer):
+class LikeCreateSerializer(serializers.ModelSerializer):
+    reviewer = serializers.HiddenField(
+        default=serializers.CurrentUserDefault()
+    )
+
+    class Meta:
+        model = Like
+        fields = ("post", "reviewer", "is_likes")
+
+
+class LikeListSerializer(serializers.ModelSerializer):
+    """Like List Serializer"""
+
+    class Meta:
+        model = Like
+        fields = ("post", "reviewer", "is_likes")
+
+
+class LikeUpdateSerializer(serializers.ModelSerializer):
+    """Like update Serializer"""
+
+    class Meta:
+        model = Like
+        fields = ("post", "reviewer", "is_likes")
+        read_only_fields = ("reviewer", "post")
+
+
+class LikePostExtraActionSerializer(serializers.ModelSerializer):
+    """Like post serialiser for extra action"""
+
     reviewer = serializers.HiddenField(
         default=serializers.CurrentUserDefault()
     )
