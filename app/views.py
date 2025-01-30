@@ -184,6 +184,7 @@ class FollowViewSet(
 
     queryset = Follow.objects.all()
     serializer_class = FollowSerializer
+    permission_classes = (IsOwnerOrAuthenticatedReadOnly,)
 
     def get_serializer_class(self):
         if self.action in ("list", "retrieve"):

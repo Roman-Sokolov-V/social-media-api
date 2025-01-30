@@ -16,3 +16,5 @@ class IsOwnerOrAuthenticatedReadOnly(BasePermission):
             return obj.author == request.user
         if hasattr(obj, "reviewer"):
             return obj.reviewer == request.user
+        if hasattr(obj, "follower"):
+            return obj.follower == request.user

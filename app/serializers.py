@@ -173,13 +173,19 @@ class FollowSerializer(serializers.ModelSerializer):
         model = Follow
         fields = ("id", "follower", "followee")
 
+    def validate(self, data):
+        Follow.check_not_me(
+            follower=data["follower"],
+            followee=data["followee"],
+            error=serializers.ValidationError,
+        )
+        return data
+
 
 class FollowListSerializer(serializers.ModelSerializer):
     """Following List Serializer"""
 
-    follower = serializers.HiddenField(
-        default=serializers.CurrentUserDefault(),
-    )
+    follower = serializers.StringRelatedField(many=False, read_only=True)
     followee = serializers.StringRelatedField(many=False, read_only=True)
 
     class Meta:

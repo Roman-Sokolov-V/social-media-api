@@ -21,6 +21,7 @@ app_name = "app"
 
 router = DefaultRouter()
 router.register(r"profile", ProfileViewSet)
+router.register(r"follow", FollowViewSet)
 router.register(r"following", MyFollowingSet, basename="following")
 router.register(r"followers", MyFollowersSet, basename="followers")
 router.register(r"post", PostViewSet, basename="post")
