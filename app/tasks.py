@@ -2,7 +2,7 @@ from celery import shared_task
 from app.models import Post
 
 
-@shared_task
+@shared_task(bind=True, max_retries=3, default_retry_delay=30)
 def publish_post(post_id):
     post = Post.objects.get(pk=post_id)
     if post:

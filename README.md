@@ -13,11 +13,8 @@
 - go to project path: `cd <project_directory>`
 - Create venv: `python -m venv venv`
 - Activate it: `venv\scripts\activate`
-- Install requirements: `pip install -r requirements.txt`
-- Run migrations: `python manage.py makemigrations`
-- Run Redis: `docker run -d -p 6379:6379 redis`
-- Run Celery for tasks handling: `celery -A api_config worker --loglevel=INFO --pool=solo`
-- Run app: `python manage.py runserver`
+- Build conteiner: `docker compose build`
+- Run conteiners: `docker compose up`
 
 ### API Endpoints
 - POST /api/register/: Register a new user
